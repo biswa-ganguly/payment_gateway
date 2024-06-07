@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import {
     Card,
     CardHeader,
@@ -6,8 +7,96 @@ import {
     Typography,
     Button,
 } from "@material-tailwind/react";
+import { useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function ProductCard() {
+    const [amount, setamount] = useState(350);
+
+    // handlePayment Function
+    const handlePayment = async () => {
+        try {
+            const res = await fetch(`${process.env.VITE_BACKEND_HOST_URL}/api/payment/order`, {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({
+                    amount
+                })
+            });
+
+            if (!res.ok) {
+                throw new Error(`HTTP error! Status: ${res.status}`);
+            }
+
+            // Log response status and text
+            console.log('Response status:', res.status);
+            const responseText = await res.text();
+            console.log('Response text:', responseText);
+
+            // Parse the response text as JSON
+            const data = JSON.parse(responseText);
+            console.log(data);
+            handlePaymentVerify(data.data);
+        } catch (error) {
+            console.error('Error:', error);
+            toast.error("Payment initialization failed");
+        }
+    }
+
+    // handlePaymentVerify Function
+    const handlePaymentVerify = async (data) => {
+        const options = {
+            key: process.env.VITE_RAZORPAY_KEY_ID,
+            amount: data.amount,
+            currency: data.currency,
+            name: "Biswa",
+            description: "Test Mode",
+            order_id: data.id,
+            handler: async (response) => {
+                console.log("response", response)
+                try {
+                    const res = await fetch(`${process.env.VITE_BACKEND_HOST_URL}/api/payment/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'content-type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                        })
+                    });
+
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! Status: ${res.status}`);
+                    }
+
+                    // Log response status and text
+                    console.log('Verify Response status:', res.status);
+                    const verifyResponseText = await res.text();
+                    console.log('Verify Response text:', verifyResponseText);
+
+                    // Parse the response text as JSON
+                    const verifyData = JSON.parse(verifyResponseText);
+
+                    if (verifyData.message) {
+                        toast.success(verifyData.message);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    toast.error("Payment verification failed");
+                }
+            },
+            theme: {
+                color: "#5f63b8"
+            }
+        };
+        const rzp1 = new window.Razorpay(options);
+        rzp1.open();
+    }
+
     return (
         <Card className="mt-6 w-96 bg-[#222f3e] text-white">
             {/* CardHeader */}
@@ -35,7 +124,8 @@ export default function ProductCard() {
             {/* CardFooter  */}
             <CardFooter className="pt-0">
                 {/* Buy Now Button  */}
-                <Button className="w-full bg-[#1B9CFC]">Buy Now</Button>
+                <Button onClick={handlePayment} className="w-full bg-[#1B9CFC]">Buy Now</Button>
+                <Toaster/>
             </CardFooter>
         </Card>
     );
